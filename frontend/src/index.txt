@@ -1,0 +1,131 @@
+import React, { useState } from 'react';
+import { useSpeechSynthesis } from 'react-speech-kit';
+import './index.css';
+
+function App() {
+  const [message, setMessage] = useState('');
+  const [userInput, setUserInput] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [error, setError] = useState('');
+  const { speak, voices } = useSpeechSynthesis();
+  const [imageUrl, setImageUrl] = useState('');
+  const [checkboxes, setCheckboxes] = useState({
+    description: false,
+    caption: false,
+    hashtags: false,
+  });
+
+  const handleInputChange = (event) => {
+    setUserInput(event.target.value);
+  };
+
+  const handleCheckboxChange = (event) => {
+    setCheckboxes({
+      ...checkboxes,
+      [event.target.name]: event.target.checked,
+    });
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+
+    let modifiedInput = userInput;
+
+    if (checkboxes.description) {
+      modifiedInput = `Generate me description of the image in the link in 100 words: ${userInput}`;
+    } else if (checkboxes.caption) {
+      modifiedInput = `Suggest me captions for the image in the link: ${userInput}`;
+    } else if (checkboxes.hashtags) {
+      modifiedInput = `Suggest me hashtags for the image in the link: ${userInput}`;
+    }
+
+    // Set the image URL to the user input
+    setImageUrl(userInput);
+
+    fetch('/api', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        text: modifiedInput,
+        options: checkboxes
+      }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then((data) => {
+        setMessage(data.message);
+        setChatHistory([...chatHistory, { prompt: modifiedInput, response: data.message }]);
+        setUserInput(''); // Clear the input field
+        speak({ text: data.message, voice: voices[106] }); // Convert response to speech
+      })
+      .catch((error) => setError(error.message));
+  };
+
+  return (
+    <div>
+      <h1>Chat Interface</h1>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      <form onSubmit={handleSubmit}>
+        <input
+          type="text"
+          value={userInput}
+          onChange={handleInputChange}
+          placeholder="Enter your prompt"
+        />
+        <div className="group">
+          <label>
+            <input
+              type="checkbox"
+              name="description"
+              checked={checkboxes.description}
+              onChange={handleCheckboxChange}
+            />
+            Description
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              name="caption"
+              checked={checkboxes.caption}
+              onChange={handleCheckboxChange}
+            />
+            Caption
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              name="hashtags"
+              checked={checkboxes.hashtags}
+              onChange={handleCheckboxChange}
+            />
+            Hashtags
+          </label>
+        </div>
+        <button type="submit">Send</button>
+      </form>
+      {imageUrl && (
+        <div>
+          <h3>Image Preview</h3>
+          <img src={imageUrl} alt="User provided link" />
+        </div>
+      )}
+      <div className="chatHistory">
+        {chatHistory.map((chat, index) => (
+          <div key={index}>
+            <p><strong>Prompt:</strong> {chat.prompt}</p>
+            <p><strong>Response:</strong> {chat.response}</p>
+            <hr />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default App;
